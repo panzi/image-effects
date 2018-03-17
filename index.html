@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<title>Moire</title>
+		<style type="text/css">
+			canvas {
+				margin: 1em auto;
+				display: block;
+			}
+			input[type=number] {
+				text-align: right;
+				width: 5em;
+			}
+			#inputs {
+				list-style: none;
+				padding: 0;
+				margin: 0;
+			}
+			#inputs li {
+				display: inline;
+			}
+			.input-output {
+				width: 4em;
+				display: inline-block;
+				text-align: right;
+			}
+			.input,
+			label {
+				white-space: nowrap;
+			}
+		</style>
+		<script type="text/javascript" src="moire.js"></script>
+	</head>
+	<body>
+		<form action="javascript:;" onsubmit="return false;">
+			<input type="file" id="file" /><br/>
+			<label>Effect: <select id="effect"></select></label>
+
+			<span class="input">
+				<label for="blur">Blur: <span id="blur-out" class="input-output">0 px</span></label>
+				<button id="blur-decr">-</button><input
+					type="range" min="0" max="200" value="0" step="1" id="blur" /><button
+					id="blur-incr">+</button><button id="blur-reset">Reset</button>
+			</span>
+			
+			<span class="input">
+				<label for="scale">Scale: <span id="scale-out" class="input-output">1 x</span></label>
+				<button id="scale-decr">-</button><input
+					type="range" min="0.01" value="1" id="scale" step="0.01" max="2" /><button
+					id="scale-incr">+</button><button id="scale-reset">Reset</button>
+			</span>
+
+			<ul id="inputs"></ul>
+		</form>
+		<canvas id="canvas"/>
+	</body>
+</html>
