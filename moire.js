@@ -80,7 +80,8 @@
 	}
 
 	function vlinesEffect(image, args, ctx) {
-		const width = args.width;
+		const { max, min, round } = Math;
+		const width = max(1, args.width);
 		const useColor = args.useColor;
 		if (!useColor) {
 			ctx.fillStyle = 'black';
@@ -88,7 +89,7 @@
 		for (let y = 0; y < image.height; ++ y) {
 			const yoff = y * image.width * 4;
 			for (let xoff = 0; xoff < image.width; xoff += width) {
-				const xend = Math.min(xoff + width, image.width);
+				const xend = min(xoff + width, image.width);
 				if (xoff < xend) {
 					let r = 0, g = 0, b = 0;
 					for (let x = xoff; x < xend; ++ x) {
@@ -103,14 +104,13 @@
 					const w = xend - xoff;
 					const val = (r + g + b) / (3 * 255);
 					if (useColor) {
-						// XXX: maybe I want hsl?
-						const { h, s, v } = rgb2hsv(r / w, g / w, b / w);
 						const x = val / w;
-						//           s   v
-						// x == 1 -> s   v
-						// x == 0 -> 1  0.5
-						const rgb = hsv2rgb(h, s * x + (1 - x), v);
-						ctx.fillStyle = 'rgb('+rgb.r+','+rgb.g+','+rgb.b+')';
+						const x255 = x * 255;
+						const divisor = 1 - x;
+						const r2 = round((r/w - x255) / divisor);
+						const g2 = round((g/w - x255) / divisor);
+						const b2 = round((b/w - x255) / divisor);
+						ctx.fillStyle = `rgb(${r2 < 0 ? 0 : r2}, ${g2 < 0 ? 0 : g2}, ${b2 < 0 ? 0 : b2})`;
 					}
 					const len = w - val;
 					const xstart = xoff + (w - len) / 2;
@@ -121,14 +121,15 @@
 	}
 
 	function hlinesEffect(image, args, ctx) {
-		const width = args.width;
+		const { max, min, round } = Math;
+		const width = max(1, args.width);
 		const useColor = args.useColor;
 		if (!useColor) {
 			ctx.fillStyle = 'black';
 		}
 		for (let ybase = 0; ybase < image.height; ybase += width) {
 			for (let x = 0; x < image.width; ++ x) {
-				const yend = Math.min(ybase + width, image.height);
+				const yend = min(ybase + width, image.height);
 				if (ybase < yend) {
 					let r = 0, g = 0, b = 0;
 					for (let y = ybase; y < yend; ++ y) {
@@ -143,10 +144,13 @@
 					const w = yend - ybase;
 					const val = (r + g + b) / (3 * 255);
 					if (useColor) {
-						const { h, s, v } = rgb2hsv(r / w, g / w, b / w);
 						const x = val / w;
-						const rgb = hsv2rgb(h, s * x + (1 - x), v);
-						ctx.fillStyle = 'rgb('+rgb.r+','+rgb.g+','+rgb.b+')';
+						const x255 = x * 255;
+						const divisor = 1 - x;
+						const r2 = round((r/w - x255) / divisor);
+						const g2 = round((g/w - x255) / divisor);
+						const b2 = round((b/w - x255) / divisor);
+						ctx.fillStyle = `rgb(${r2 < 0 ? 0 : r2}, ${g2 < 0 ? 0 : g2}, ${b2 < 0 ? 0 : b2})`;
 					}
 					const len = w - val;
 					const ystart = ybase + (w - len) / 2;
@@ -156,12 +160,19 @@
 		}
 	}
 
+	let MATH_KEYS = new Set(Object.getOwnPropertyNames(Math));
+	MATH_KEYS.delete('toSource');
+	MATH_KEYS = Array.from(MATH_KEYS);
+	const FUNC_PREFIX = `const { ${MATH_KEYS.join(', ')} } = Math; return (x, y, w, h, lw) => (`;
+	const FUNC_SUFFIX = ');';
+
 	function exprEffect(image, args, ctx) {
-		const expr = new Function('x', 'y', 'w', 'h', 'lw', 'return (' + args.expr + ');');
+		const { min, max, ceil, round } = Math;
+		const expr = (new Function(FUNC_PREFIX + args.expr + FUNC_SUFFIX))();
 		const imwidth = image.width;
 		const imheight = image.height;
 		const imwidth4 = imwidth * 4;
-		const width = Math.max(Math.round(args.width * imheight), 1);
+		const width = max(round(args.relwidth * imheight), 1);
 		const ybaseStart = 'ystart' in args ? imheight * args.ystart : 0;
 		const ybaseEnd = 'yend' in args ? imheight * args.yend : imheight;
 		const useColor = args.useColor;
@@ -171,10 +182,10 @@
 		for (let ybase = ybaseStart; ybase < ybaseEnd; ybase += width) {
 			for (let x = 0; x < imwidth; ++ x) {
 				const yres = expr(x, ybase, imwidth, imheight, width);
-				const ystart = Math.max(yres, 0);
-				const yend = Math.min(yres + width, imheight);
+				const ystart = max(yres, 0);
+				const yend = min(yres + width, imheight);
 				if (ystart < yend) {
-					const pixcount = Math.ceil(yend - ystart);
+					const pixcount = ceil(yend - ystart);
 					let r = 0, g = 0, b = 0;
 					const xoff = x * 4;
 					for (let y = ystart; y < yend; ++ y) {
@@ -190,10 +201,13 @@
 					let val = (r + g + b) / (3 * 255);
 					val += (width - pixcount) * val / pixcount;
 					if (useColor) {
-						const { h, s, v } = rgb2hsv(r / pixcount, g / pixcount, b / pixcount);
 						const x = val / pixcount;
-						const rgb = hsv2rgb(h, s * x + (1 - x), v);
-						ctx.fillStyle = 'rgb('+rgb.r+','+rgb.g+','+rgb.b+')';
+						const x255 = x * 255;
+						const divisor = 1 - x;
+						const r2 = round((r/pixcount - x255) / divisor);
+						const g2 = round((g/pixcount - x255) / divisor);
+						const b2 = round((b/pixcount - x255) / divisor);
+						ctx.fillStyle = `rgb(${r2 < 0 ? 0 : r2}, ${g2 < 0 ? 0 : g2}, ${b2 < 0 ? 0 : b2})`;
 					}
 					const len = width - val;
 					ctx.fillRect(x, yres + (width - len) / 2, 1, len);
@@ -203,16 +217,19 @@
 	}
 
 	function dotsEffect(image, args, ctx) {
-		const size = args.size;
+		const { min, max, round, pow } = Math;
+		const size = max(args.size, 1);
 		const colorMode = args.colorMode;
 		const bw    = colorMode === 'bw';
 		const mixed = colorMode === 'mixed';
 		const cmyk  = colorMode === 'cmyk';
+		const rgb  = colorMode === 'rgb';
 		const halfSize = size / 2;
 		const quarterSize = size / 4;
 		const threeQuarterSize = size * 3 / 4;
+		const thirdSize = size * 1/3;
 		const rBase = args.overlap ?
-			Math.sqrt(halfSize*halfSize + halfSize*halfSize) : 
+			Math.sqrt(halfSize*halfSize + halfSize*halfSize) :
 			halfSize;
 		const seed = args.seed;
 		const imwidth = image.width;
@@ -221,11 +238,17 @@
 			ctx.fillStyle = 'black';
 		} else if (cmyk) {
 			ctx.globalCompositeOperation = "multiply";
+		} else if (rgb) {
+			ctx.fillStyle = 'black';
+			ctx.fillRect(0, 0, imwidth, imheight);
+			ctx.globalCompositeOperation = "lighter";
 		}
+		const bg = rgb ? 0 : 255;
+		const power = min(max(args.power, 0), 2);
 		for (let ybase = 0; ybase < imheight; ybase += size) {
-			const yend = Math.min(ybase + size, imheight);
+			const yend = min(ybase + size, imheight);
 			for (let xbase = 0; xbase < imwidth; xbase += size) {
-				const xend = Math.min(xbase + size, imwidth);
+				const xend = min(xbase + size, imwidth);
 				let r = 0, g = 0, b = 0;
 				for (let y = ybase; y < yend; ++ y) {
 					const offset = y * imwidth * 4;
@@ -248,16 +271,16 @@
 					g = g / divisor;
 					b = b / divisor;
 
-					const k = 1 - Math.max(r, g, b);
+					const k = 1 - max(r, g, b);
 					const ik = 1 - k;
 					const c = (1 - r - k) / ik;
 					const m = (1 - g - k) / ik;
 					const y = (1 - b - k) / ik;
 
-					const rc = c * rBase;
-					const rm = m * rBase;
-					const ry = y * rBase;
-					const rk = k * rBase;
+					const rc = pow(c, power) * rBase;
+					const rm = pow(m, power) * rBase;
+					const ry = pow(y, power) * rBase;
+					const rk = pow(k, power) * rBase;
 
 					ctx.fillStyle = 'cyan';
 					ctx.beginPath();
@@ -271,22 +294,69 @@
 
 					ctx.fillStyle = 'yellow';
 					ctx.beginPath();
-					ctx.ellipse(xbase + threeQuarterSize, ybase + quarterSize, ry, ry, 0, 0, TAU);
+					ctx.ellipse(xbase, ybase + threeQuarterSize, ry, ry, 0, 0, TAU);
 					ctx.fill();
 
 					ctx.fillStyle = 'black';
 					ctx.beginPath();
-					ctx.ellipse(xbase + threeQuarterSize, ybase + threeQuarterSize, rk, rk, 0, 0, TAU);
+					ctx.ellipse(xbase + halfSize, ybase + threeQuarterSize, rk, rk, 0, 0, TAU);
 					ctx.fill();
+				} else if (rgb) {
+					const column = xbase / size;
+					const radius = pow(1/3, power) * rBase;
+					r = round(r / pixcount);
+					g = round(g / pixcount);
+					b = round(b / pixcount);
+
+					if (column & 1) {
+						ctx.fillStyle = `rgb(${r}, 0, 0)`;
+						ctx.beginPath();
+						ctx.ellipse(xbase + halfSize, ybase + quarterSize, radius, radius, 0, 0, TAU);
+						ctx.fill();
+
+						ctx.fillStyle = `rgb(0, ${g}, 0)`;
+						ctx.beginPath();
+						ctx.ellipse(xbase + halfSize - thirdSize, ybase + threeQuarterSize, radius, radius, 0, 0, TAU);
+						ctx.fill();
+
+						ctx.fillStyle = `rgb(0, 0, ${b})`;
+						ctx.beginPath();
+						ctx.ellipse(xbase + halfSize + thirdSize, ybase + threeQuarterSize, radius, radius, 0, 0, TAU);
+						ctx.fill();
+					} else {
+						ctx.fillStyle = `rgb(0, ${g}, 0)`;
+						ctx.beginPath();
+						ctx.ellipse(xbase + halfSize - thirdSize, ybase + quarterSize, radius, radius, 0, 0, TAU);
+						ctx.fill();
+
+						ctx.fillStyle = `rgb(0, 0, ${b})`;
+						ctx.beginPath();
+						ctx.ellipse(xbase + halfSize + thirdSize, ybase + quarterSize, radius, radius, 0, 0, TAU);
+						ctx.fill();
+
+						ctx.fillStyle = `rgb(${r}, 0, 0)`;
+						ctx.beginPath();
+						ctx.ellipse(xbase + halfSize, ybase + threeQuarterSize, radius, radius, 0, 0, TAU);
+						ctx.fill();
+					}
 				} else {
 					const val = (r + g + b) / (3 * 255);
 					const norm = 1 - val / pixcount;
-					const radius = norm * rBase;
+					const radius = pow(norm, power) * rBase;
 					if (mixed) {
-						const { h, s, v } = rgb2hsv(r / pixcount, g / pixcount, b / pixcount);
-						const x = val / pixcount;
-						const rgb = hsv2rgb(h, s * x + (1 - x), v);
-						ctx.fillStyle = 'rgb('+rgb.r+','+rgb.g+','+rgb.b+')';
+						// not sure about this
+//						const A = Math.PI * radius*radius;
+//						const divisor = A / pixcount;
+//						const x = 1 - divisor;
+//						const x255 = x * 255;
+
+//						const r2 = round((r/pixcount - x255) / divisor);
+//						const g2 = round((g/pixcount - x255) / divisor);
+//						const b2 = round((b/pixcount - x255) / divisor);
+						const r2 = r/pixcount;
+						const g2 = g/pixcount;
+						const b2 = b/pixcount;
+						ctx.fillStyle = `rgb(${r2 < 0 ? 0 : r2}, ${g2 < 0 ? 0 : g2}, ${b2 < 0 ? 0 : b2})`;
 					}
 					ctx.beginPath();
 					ctx.ellipse(xbase + halfSize, ybase + halfSize, radius, radius, 0, 0, TAU);
@@ -302,7 +372,7 @@
 			name: "Vertical Lines",
 			func: vlinesEffect,
 			inputs: [
-				{ label: 'Line-Width', id: 'width', min: 1, step: 1, value: 5 },
+				{ label: 'Line-Width (px)', id: 'width', min: 1, step: 1, value: 5 },
 				{ label: 'Color', id: 'useColor', type: 'checkbox', checked: false },
 			]
 		},
@@ -310,7 +380,7 @@
 			name: "Horizontal Lines",
 			func: hlinesEffect,
 			inputs: [
-				{ label: 'Line-Width', id: 'width', min: 1, step: 1, value: 5 },
+				{ label: 'Line-Width (px)', id: 'width', min: 1, step: 1, value: 5 },
 				{ label: 'Color', id: 'useColor', type: 'checkbox', checked: false },
 			]
 		},
@@ -318,9 +388,8 @@
 			name: "Expression",
 			func: exprEffect,
 			inputs: [
-				//{ label: 'Function', id: 'expr', type: 'text', value: 'y + Math.sin(5 * Math.PI * x / w) * lw - x * 0.25' },
-				{ label: 'Function', id: 'expr', type: 'text', value: 'y + Math.sin(2 * Math.TAU * (x/w)) * w * 0.1 - (x/w) * h' },
-				{ label: 'Line-Width', id: 'width', min: 0, step: 0.0001, value: 0.015 },
+				{ label: 'Function', id: 'expr', type: 'text', value: 'y + sin(2 * TAU * (x/w)) * w * 0.1 - (x/w) * h' },
+				{ label: 'Line-Width (ratio)', id: 'relwidth', min: 0, step: 0.0001, value: 0.015 },
 				{ label: 'Y-Start', id: 'ystart', type: 'number', step: 0.0001, value: 0, optional: true, disabled: false },
 				{ label: 'Y-End', id: 'yend', type: 'number', step: 0.0001, value: 2, optional: true, disabled: false },
 				{ label: 'Color', id: 'useColor', type: 'checkbox', checked: false },
@@ -334,9 +403,11 @@
 				{ label: 'Overlap', id: 'overlap', type: 'checkbox', checked: true },
 				{ label: 'Color Mode', id: 'colorMode', type: 'select', value: 'bw', options: [
 					{ value: 'bw', label: 'Black and White' },
-					{ value: 'mixed', label: 'Colored Dots' },
-					{ value: 'cmyk', label: 'CMYK' },
+					{ value: 'mixed', label: 'Colored' },
+					{ value: 'rgb', label: 'TV (RGB)' },
+					{ value: 'cmyk', label: 'Print (CMYK)' },
 				] },
+				{ label: 'Power', id: 'power', type: 'range', min: 0, max: 2, step: 0.05, value: 1 },
 			]
 		},
 	];
@@ -347,6 +418,22 @@
 		const effect = EFFECTS[i];
 		effect.id = "effect_" + i;
 		EFFECT_MAP[effect.id] = effect;
+	}
+
+	function getArgs(effect) {
+		const args = {};
+		for (const input of effect.inputs) {
+			if (!input.optional || document.getElementById('option_effect_input_' + input.id).checked) {
+				const inputEl = document.getElementById('effect_input_' + input.id);
+				if (inputEl) {
+					args[input.id] = (
+						inputEl.type === 'number'   || inputEl.type === 'range' ? +inputEl.value :
+						inputEl.type === 'checkbox' || inputEl.type === 'radio' ? inputEl.checked :
+						inputEl.value);
+				}
+			}
+		}
+		return args;
 	}
 
 	function redraw() {
@@ -362,8 +449,8 @@
 			let ch = image.naturalHeight;
 
 			if (scale !== 1) {
-				cw = Math.floor(cw * scale);
-				ch = Math.floor(ch * scale);
+				cw = (cw * scale)|0;
+				ch = (ch * scale)|0;
 			}
 			
 			offscreenEl.width = cw;
@@ -378,16 +465,7 @@
 
 			ctx.drawImage(image, 0, 0, cw, ch);
 			const imageData = ctx.getImageData(0, 0, cw, ch);
-			const args = {};
-			for (const input of effect.inputs) {
-				if (!input.optional || document.getElementById('option_effect_input_' + input.id).checked) {
-					const inputEl = document.getElementById('effect_input_' + input.id);
-					args[input.id] = (
-						inputEl.type === 'number'   || inputEl.type === 'range' ? +inputEl.value :
-						inputEl.type === 'checkbox' || inputEl.type === 'radio' ? inputEl.checked :
-						inputEl.value);
-				}
-			}
+			const args = getArgs(effect);
 
 			canvasEl.width = cw;
 			canvasEl.height = ch;
@@ -430,38 +508,61 @@
 		}
 	}
 
+	let currentEffect = null;
+
 	function updateSelection() {
 		const effectEl = document.getElementById('effect');
 		const effect = EFFECT_MAP[effectEl.value];
 		const inputsEl = document.getElementById('inputs');
+		const oldEffect = currentEffect;
+		const args = oldEffect ? getArgs(oldEffect) : {};
+		const oldInputs = {};
+		if (oldEffect) {
+			for (const oldInput of oldEffect.inputs) {
+				oldInputs[oldInput.id] = oldInput;
+			}
+		}
+		currentEffect = effect;
 		inputsEl.innerHTML = '';
 		for (const input of effect.inputs) {
 			const labelEl = document.createElement('label');
 			const liEl = document.createElement('li');
-			const disabled = !!input.disabled;
 			let resetEl;
 			let inputEl;
+			const disabled = !!input.disabled;
 			const checkable = input.type === 'checkbox' || input.type === 'radio';
+			const type = input.type ? input.type :
+				'min' in input && 'max' in input ? 'range' :
+				'min' in input || 'max' in input ? 'number' : 'text';
+			if (!input.type) {
+				input.type = type;
+			}
 
-			if (input.type === 'select') {
+			if (type === 'select') {
 				inputEl = document.createElement('select');
 				buildOptions(inputEl, input.options);
 			}
-			else if (input.type === 'textarea') {
+			else if (type === 'textarea') {
 				inputEl = document.createElement('textarea');
-				if ('value' in input) {
-					inputEl.value = input.value;
-				}
 			} else {
 				inputEl = document.createElement('input');
-				inputEl.type = input.type ? input.type :
-					'min' in input && 'max' in input ? 'range' :
-					'min' in input || 'max' in input ? 'number' : 'text';
-				for (const attr of ['value', 'min', 'max', 'step', 'checked']) {
+				inputEl.type = type;
+				for (const attr of ['min', 'max', 'step', 'checked']) {
 					if (attr in input) {
 						inputEl[attr] = input[attr];
 					}
 				}
+			}
+
+			const oldInput = oldInputs[input.id];
+			if (oldInput && oldInput.type === type && input.id in args) {
+				if (checkable) {
+					inputEl.checked = args[input.id];
+				} else {
+					inputEl.value = args[input.id];
+				}
+			} else if ('value' in input) {
+				inputEl.value = input.value;
 			}
 
 			inputEl.disabled = disabled;
@@ -484,9 +585,62 @@
 				resetEl.appendChild(document.createTextNode('Reset'));
 			}
 
-			inputEl.addEventListener('change', redraw, false);
+			if (input.type === 'range') {
+				const outEl = document.createElement('span');
+				const decrEl = document.createElement('button');
+				const incrEl = document.createElement('button');
 
-			labelEl.appendChild(inputEl);
+				outEl.className = 'input-output';
+				outEl.appendChild(document.createTextNode(input.value.toFixed(2)));
+
+				decrEl.addEventListener('click', function (inputEl, outEl) {
+					let value = +inputEl.value - +(inputEl.step||1);
+					if (inputEl.min && value < +inputEl.min) {
+						value = +inputEl.min;
+					}
+					inputEl.value = value;
+					outEl.innerHTML = '';
+					outEl.appendChild(document.createTextNode(value.toFixed(2)));
+					redraw();
+				}.bind(decrEl, inputEl, outEl), false);
+
+				incrEl.addEventListener('click', function (inputEl, outEl) {
+					let value = +inputEl.value + +(inputEl.step||1);
+					if (inputEl.max && value > +inputEl.max) {
+						value = +inputEl.max;
+					}
+					inputEl.value = value;
+					outEl.innerHTML = '';
+					outEl.appendChild(document.createTextNode(value.toFixed(2)));
+					redraw();
+				}.bind(incrEl, inputEl, outEl), false);
+
+				inputEl.addEventListener('change', function (outEl) {
+					outEl.innerHTML = '';
+					outEl.appendChild(document.createTextNode(Number(this.value).toFixed(2)));
+					redraw();
+				}.bind(inputEl, outEl), false);
+
+				if (resetEl) {
+					resetEl.addEventListener('click', function (outEl) {
+						outEl.innerHTML = '';
+						outEl.appendChild(document.createTextNode(Number(this.value).toFixed(2)));
+					}.bind(inputEl, outEl), false);
+				}
+
+				decrEl.appendChild(document.createTextNode('-'));
+				incrEl.appendChild(document.createTextNode('+'));
+
+				labelEl.appendChild(outEl);
+				labelEl.appendChild(document.createTextNode(' '));
+				labelEl.appendChild(decrEl);
+				labelEl.appendChild(inputEl);
+				labelEl.appendChild(incrEl);
+			} else {
+				inputEl.addEventListener('change', redraw, false);
+				labelEl.appendChild(inputEl);
+			}
+
 			if (checkable) {
 				labelEl.appendChild(document.createTextNode(' ' + input.label));
 			}
