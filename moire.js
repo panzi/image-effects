@@ -243,16 +243,20 @@
 			ctx.fillRect(0, 0, imwidth, imheight);
 			ctx.globalCompositeOperation = "lighter";
 		}
-		const bg = rgb ? 0 : 255;
+		const shift = bw || mixed;
 		const power = min(max(args.power, 0), 2);
+		let offset1 = 0;
+		let offset2 = -(halfSize|0);
 		for (let ybase = 0; ybase < imheight; ybase += size) {
 			const yend = min(ybase + size, imheight);
-			for (let xbase = 0; xbase < imwidth; xbase += size) {
+			const ysize = yend - ybase;
+			for (let xbase = shift ? offset1 : 0; xbase < imwidth; xbase += size) {
 				const xend = min(xbase + size, imwidth);
+				const xstart = max(xbase, 0);
 				let r = 0, g = 0, b = 0;
 				for (let y = ybase; y < yend; ++ y) {
 					const offset = y * imwidth * 4;
-					for (let x = xbase; x < xend; ++ x) {
+					for (let x = xstart; x < xend; ++ x) {
 						const index = offset + x * 4;
 						let a = image.data[index + 3];
 						const ia = 255 - a;
@@ -262,8 +266,7 @@
 						b += ia + image.data[index + 2] * a;
 					}
 				}
-				const ysize = yend - ybase;
-				const xsize = xend - xbase;
+				const xsize = xend - xstart;
 				const pixcount = ysize * xsize;
 				if (cmyk) {
 					const divisor = pixcount * 255;
@@ -343,6 +346,9 @@
 					const val = (r + g + b) / (3 * 255);
 					const norm = 1 - val / pixcount;
 					const radius = pow(norm, power) * rBase;
+					if (radius < 0) {
+						console.log({ val, norm, radius, pixcount, xsize, ysize, xstart, xend, xbase, ybase, yend });
+					}
 					if (mixed) {
 						// not sure about this
 //						const A = Math.PI * radius*radius;
@@ -353,16 +359,20 @@
 //						const r2 = round((r/pixcount - x255) / divisor);
 //						const g2 = round((g/pixcount - x255) / divisor);
 //						const b2 = round((b/pixcount - x255) / divisor);
+//						ctx.fillStyle = `rgb(${r2 < 0 ? 0 : r2}, ${g2 < 0 ? 0 : g2}, ${b2 < 0 ? 0 : b2})`;
 						const r2 = r/pixcount;
 						const g2 = g/pixcount;
 						const b2 = b/pixcount;
-						ctx.fillStyle = `rgb(${r2 < 0 ? 0 : r2}, ${g2 < 0 ? 0 : g2}, ${b2 < 0 ? 0 : b2})`;
+						ctx.fillStyle = `rgb(${r2}, ${g2}, ${b2})`;
 					}
 					ctx.beginPath();
 					ctx.ellipse(xbase + halfSize, ybase + halfSize, radius, radius, 0, 0, TAU);
 					ctx.fill();
 				}
 			}
+			const tmp = offset2;
+			offset2 = offset1;
+			offset1 = tmp;
 		}
 	}
 
@@ -585,6 +595,7 @@
 				resetEl.appendChild(document.createTextNode('Reset'));
 			}
 
+			inputEl.addEventListener('change', redraw, false);
 			if (input.type === 'range') {
 				const outEl = document.createElement('span');
 				const decrEl = document.createElement('button');
@@ -615,10 +626,9 @@
 					redraw();
 				}.bind(incrEl, inputEl, outEl), false);
 
-				inputEl.addEventListener('change', function (outEl) {
+				inputEl.addEventListener('input', function (outEl) {
 					outEl.innerHTML = '';
 					outEl.appendChild(document.createTextNode(Number(this.value).toFixed(2)));
-					redraw();
 				}.bind(inputEl, outEl), false);
 
 				if (resetEl) {
@@ -637,7 +647,6 @@
 				labelEl.appendChild(inputEl);
 				labelEl.appendChild(incrEl);
 			} else {
-				inputEl.addEventListener('change', redraw, false);
 				labelEl.appendChild(inputEl);
 			}
 
