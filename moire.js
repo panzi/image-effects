@@ -485,6 +485,8 @@
 			ctx.fillRect(0, 0, cw, ch);
 			ctx.fillStyle = 'black';
 			effect.func(imageData, args, ctx);
+
+			document.getElementById("save-btn").disabled = false;
 		}
 	}
 
@@ -701,6 +703,45 @@
 		redraw();
 	}
 
+	function replaceExt(filename, ext) {
+		return filename.replace(/\.[^\.]+$/, '') + ext;
+	}
+
+	function saveImage() {
+		const canvasEl = document.getElementById('canvas');
+		const fileEl = document.getElementById('file');
+		let filename;
+
+		if (fileEl.files && fileEl.files.length > 0) {
+			filename = replaceExt(fileEl.files[0].name, '.png');
+		} else if (fileEl.value) {
+			filename = fileEl.value.split(/[\\\/]/);
+			filename = replaceExt(filename[filename.length - 1], '.png');
+		} else if (currentEffect) {
+			filename = currentEffect.name + '.png';
+		} else {
+			filename = 'output.png';
+		}
+
+		canvasEl.toBlob(blob => {
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = filename;
+			link.style.visibility = 'hidden';
+			link.style.position = 'fixed';
+			link.style.left = '0px';
+			link.style.top = '0px';
+			document.body.appendChild(link);
+			link.click();
+
+			setTimeout(() => {
+				URL.revokeObjectURL(url);
+				document.body.removeChild(link);
+			}, 1000);
+		}, 'image/png');
+	}
+
 	window.addEventListener('load', () => {
 		const effectEl = document.getElementById('effect');
 		for (const effect of EFFECTS) {
@@ -734,6 +775,8 @@
 
 		blurEl.addEventListener("change", redraw, false);
 		blurEl.addEventListener("input", setBlurOut, false);
+
+		document.getElementById("save-btn").addEventListener("click", saveImage, false);
 
 		document.getElementById("blur-decr").addEventListener("click", () => {
 			decreaseValue(blurEl);
