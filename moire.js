@@ -182,14 +182,14 @@
 		for (let ybase = ybaseStart; ybase < ybaseEnd; ybase += width) {
 			for (let x = 0; x < imwidth; ++ x) {
 				const yres = expr(x, ybase, imwidth, imheight, width);
-				const ystart = max(yres, 0);
-				const yend = min(yres + width, imheight);
+				const ystart = max(yres, 0)|0;
+				const yend = ceil(min(yres + width, imheight));
 				if (ystart < yend) {
 					const pixcount = ceil(yend - ystart);
 					let r = 0, g = 0, b = 0;
 					const xoff = x * 4;
 					for (let y = ystart; y < yend; ++ y) {
-						const index = (y|0) * imwidth4 + xoff;
+						const index = y * imwidth4 + xoff;
 						let a = image.data[index + 3];
 						const ia = 255 - a;
 						a /= 255;
@@ -455,6 +455,8 @@
 			const canvasEl = document.getElementById('canvas');
 			const scale = +document.getElementById("scale").value;
 			const blur = +document.getElementById("blur").value;
+			const contrast = +document.getElementById("contrast").value;
+			const brightness = +document.getElementById("brightness").value;
 			let cw = image.naturalWidth;
 			let ch = image.naturalHeight;
 
@@ -469,8 +471,21 @@
 			let ctx = offscreenEl.getContext("2d");
 
 			ctx.globalCompositeOperation = 'source-over';
+			const filter = [];
 			if (blur > 0) {
-				ctx.filter = 'blur(' + blur + 'px)';
+				filter.push(`blur(${blur}px)`);
+			}
+
+			if (contrast !== 100) {
+				filter.push(`contrast(${contrast}%)`);
+			}
+
+			if (brightness !== 100) {
+				filter.push(`brightness(${brightness}%)`);
+			}
+
+			if (filter.length > 0) {
+				ctx.filter = filter.join(' ');
 			}
 
 			ctx.drawImage(image, 0, 0, cw, ch);
@@ -588,6 +603,7 @@
 				labelEl.appendChild(document.createTextNode(input.label + ': '));
 
 				resetEl = document.createElement('button');
+				resetEl.type = 'button';
 				resetEl.id = 'reset_effect_input_' + input.id;
 				resetEl.disabled = disabled;
 				resetEl.addEventListener('click', function (inputEl, input) {
@@ -602,6 +618,9 @@
 				const outEl = document.createElement('span');
 				const decrEl = document.createElement('button');
 				const incrEl = document.createElement('button');
+
+				decrEl.type = 'button';
+				incrEl.type = 'button';
 
 				outEl.className = 'input-output';
 				outEl.appendChild(document.createTextNode(input.value.toFixed(2)));
@@ -673,7 +692,6 @@
 				liEl.appendChild(document.createTextNode(' '));
 			}
 
-
 			liEl.appendChild(labelEl);
 			if (resetEl) {
 				liEl.appendChild(resetEl);
@@ -684,23 +702,50 @@
 		redraw();
 	}
 
-	function increaseValue(input) {
-		input.value = +input.value + +input.step;
-		redraw();
-	}
+	function initRange(id, suffix='') {
+		const inputEl = document.getElementById(id);
+		const incrEl = document.getElementById(id + '-incr');
+		const decrEl = document.getElementById(id + '-decr');
+		const outEl = document.getElementById(id + '-out');
+		const resetEl = document.getElementById(id + '-reset');
 
-	function decreaseValue(input) {
-		input.value = +input.value - +input.step;
-		redraw();
-	}
-
-	function resetValue(input) {
-		if (input.type === 'checkbox' || input.type === 'radio') {
-			input.checked = input.getAttribute("checked");
-		} else {
-			input.value = input.getAttribute("value");
+		function setOut() {
+			outEl.innerHTML = '';
+			outEl.appendChild(document.createTextNode(inputEl.value + suffix));
 		}
-		redraw();
+
+		inputEl.addEventListener("change", redraw, false);
+		inputEl.addEventListener("input", setOut, false);
+
+		decrEl.addEventListener("click", () => {
+			const value = +inputEl.value - +inputEl.step;
+			if (value < +inputEl.min) {
+				inputEl.value = inputEl.min;
+			} else {
+				inputEl.value = value;
+			}
+			setOut();
+			redraw();
+		}, false);
+
+		incrEl.addEventListener("click", () => {
+			const value = +inputEl.value + +inputEl.step;
+			if (value > +inputEl.max) {
+				inputEl.value = inputEl.max;
+			} else {
+				inputEl.value = value;
+			}
+			setOut();
+			redraw();
+		}, false);
+
+		resetEl.addEventListener("click", () => {
+			inputEl.value = inputEl.getAttribute("value");
+			setOut();
+			redraw();
+		}, false);
+
+		setOut();
 	}
 
 	function replaceExt(filename, ext) {
@@ -713,10 +758,10 @@
 		let filename;
 
 		if (fileEl.files && fileEl.files.length > 0) {
-			filename = replaceExt(fileEl.files[0].name, '.png');
+			filename = replaceExt(fileEl.files[0].name, ` ${currentEffect.name}.png`);
 		} else if (fileEl.value) {
 			filename = fileEl.value.split(/[\\\/]/);
-			filename = replaceExt(filename[filename.length - 1], '.png');
+			filename = replaceExt(filename[filename.length - 1], ` ${currentEffect.name}.png`);
 		} else if (currentEffect) {
 			filename = currentEffect.name + '.png';
 		} else {
@@ -755,60 +800,11 @@
 		const fileEl = document.getElementById('file');
 		fileEl.addEventListener('change', updateFile, false);
 
-		const scaleEl = document.getElementById("scale");
-		const blurEl = document.getElementById("blur");
-		const scaleOutEl = document.getElementById("scale-out");
-		const blurOutEl = document.getElementById("blur-out");
-
-		function setScaleOut() {
-			scaleOutEl.innerHTML = '';
-			scaleOutEl.appendChild(document.createTextNode(scaleEl.value + ' x'));
-		}
-
-		function setBlurOut() {
-			blurOutEl.innerHTML = '';
-			blurOutEl.appendChild(document.createTextNode(blurEl.value + ' px'));
-		}
-
-		scaleEl.addEventListener("change", redraw, false);
-		scaleEl.addEventListener("input", setScaleOut, false);
-
-		blurEl.addEventListener("change", redraw, false);
-		blurEl.addEventListener("input", setBlurOut, false);
+		initRange('scale', ' x');
+		initRange('blur', ' px');
+		initRange('contrast', ' %');
+		initRange('brightness', ' %');
 
 		document.getElementById("save-btn").addEventListener("click", saveImage, false);
-
-		document.getElementById("blur-decr").addEventListener("click", () => {
-			decreaseValue(blurEl);
-			setBlurOut();
-		}, false);
-
-		document.getElementById("blur-incr").addEventListener("click", () => {
-			increaseValue(blurEl);
-			setBlurOut();
-		}, false);
-
-		document.getElementById("blur-reset").addEventListener("click", () => {
-			resetValue(blurEl);
-			setBlurOut();
-		}, false);
-
-		document.getElementById("scale-decr").addEventListener("click", () => {
-			decreaseValue(scaleEl);
-			setScaleOut();
-		}, false);
-
-		document.getElementById("scale-incr").addEventListener("click", () => {
-			increaseValue(scaleEl);
-			setScaleOut();
-		}, false);
-
-		document.getElementById("scale-reset").addEventListener("click", () => {
-			resetValue(scaleEl);
-			setScaleOut();
-		}, false);
-
-		setScaleOut();
-		setBlurOut();
 	}, false);
 })();

@@ -35,22 +35,36 @@
 	<body>
 		<form action="javascript:;" onsubmit="return false;">
 			<input type="file" id="file" />
-			<button id="save-btn" disabled>Save</button>
+			<button id="save-btn" type="button" disabled>Save</button>
 			<br/>
 			<label>Effect: <select id="effect"></select></label>
 
 			<span class="input">
 				<label for="blur">Blur: <span id="blur-out" class="input-output">0 px</span></label>
-				<button id="blur-decr">-</button><input
+				<button type="button" id="blur-decr">-</button><input
 					type="range" min="0" max="200" value="0" step="1" id="blur" /><button
-					id="blur-incr">+</button><button id="blur-reset">Reset</button>
+					type="button" id="blur-incr">+</button><button type="button" id="blur-reset">Reset</button>
 			</span>
-			
+
+			<span class="input">
+				<label for="contrast">Contrast: <span id="contrast-out" class="input-output">100 %</span></label>
+				<button type="button" id="contrast-decr">-</button><input
+					type="range" min="0" max="1000" value="100" step="1" id="contrast" /><button
+					type="button" id="contrast-incr">+</button><button type="button" id="contrast-reset">Reset</button>
+			</span>
+
+			<span class="input">
+				<label for="brightness">Brightness: <span id="brightness-out" class="input-output">100 %</span></label>
+				<button type="button" id="brightness-decr">-</button><input
+					type="range" min="0" max="1000" value="100" step="1" id="brightness" /><button
+					type="button" id="brightness-incr">+</button><button type="button" id="brightness-reset">Reset</button>
+			</span>
+
 			<span class="input">
 				<label for="scale">Scale: <span id="scale-out" class="input-output">1 x</span></label>
-				<button id="scale-decr">-</button><input
+				<button type="button" id="scale-decr">-</button><input
 					type="range" min="0.01" value="1" id="scale" step="0.01" max="2" /><button
-					id="scale-incr">+</button><button id="scale-reset">Reset</button>
+					type="button" id="scale-incr">+</button><button type="button" id="scale-reset">Reset</button>
 			</span>
 
 			<ul id="inputs"></ul>
