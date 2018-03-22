@@ -382,7 +382,7 @@
 			name: "Vertical Lines",
 			func: vlinesEffect,
 			inputs: [
-				{ label: 'Line-Width (px)', id: 'width', min: 1, step: 1, value: 5 },
+				{ label: 'Line-Width (px)', id: 'width', min: 1, step: 1, value: 6 },
 				{ label: 'Color', id: 'useColor', type: 'checkbox', checked: false },
 			]
 		},
@@ -390,7 +390,7 @@
 			name: "Horizontal Lines",
 			func: hlinesEffect,
 			inputs: [
-				{ label: 'Line-Width (px)', id: 'width', min: 1, step: 1, value: 5 },
+				{ label: 'Line-Width (px)', id: 'width', min: 1, step: 1, value: 6 },
 				{ label: 'Color', id: 'useColor', type: 'checkbox', checked: false },
 			]
 		},
@@ -409,7 +409,7 @@
 			name: "Dots",
 			func: dotsEffect,
 			inputs: [
-				{ label: 'Size', id: 'size', min: 1, step: 1, value: 5 },
+				{ label: 'Size', id: 'size', min: 1, step: 1, value: 8 },
 				{ label: 'Overlap', id: 'overlap', type: 'checkbox', checked: true },
 				{ label: 'Color Mode', id: 'colorMode', type: 'select', value: 'bw', options: [
 					{ value: 'bw', label: 'Black and White' },
@@ -603,6 +603,7 @@
 				labelEl.appendChild(document.createTextNode(input.label + ': '));
 
 				resetEl = document.createElement('button');
+				resetEl.className = 'reset';
 				resetEl.type = 'button';
 				resetEl.id = 'reset_effect_input_' + input.id;
 				resetEl.disabled = disabled;
@@ -619,13 +620,16 @@
 				const decrEl = document.createElement('button');
 				const incrEl = document.createElement('button');
 
+				decrEl.className = 'decr';
+				incrEl.className = 'incr';
+
 				decrEl.type = 'button';
 				incrEl.type = 'button';
 
 				outEl.className = 'input-output';
 				outEl.appendChild(document.createTextNode(input.value.toFixed(2)));
 
-				decrEl.addEventListener('click', function (inputEl, outEl) {
+				const decrease = function (inputEl, outEl) {
 					let value = +inputEl.value - +(inputEl.step||1);
 					if (inputEl.min && value < +inputEl.min) {
 						value = +inputEl.min;
@@ -634,9 +638,9 @@
 					outEl.innerHTML = '';
 					outEl.appendChild(document.createTextNode(value.toFixed(2)));
 					redraw();
-				}.bind(decrEl, inputEl, outEl), false);
+				}.bind(decrEl, inputEl, outEl);
 
-				incrEl.addEventListener('click', function (inputEl, outEl) {
+				const increase = function (inputEl, outEl) {
 					let value = +inputEl.value + +(inputEl.step||1);
 					if (inputEl.max && value > +inputEl.max) {
 						value = +inputEl.max;
@@ -645,7 +649,13 @@
 					outEl.innerHTML = '';
 					outEl.appendChild(document.createTextNode(value.toFixed(2)));
 					redraw();
-				}.bind(incrEl, inputEl, outEl), false);
+				}.bind(incrEl, inputEl, outEl);
+
+				decrEl.addEventListener('click', decrease, false);
+				incrEl.addEventListener('click', increase, false);
+
+				addMouseRepeatListener(decrEl, decrease);
+				addMouseRepeatListener(incrEl, increase);
 
 				inputEl.addEventListener('input', function (outEl) {
 					outEl.innerHTML = '';
@@ -667,6 +677,11 @@
 				labelEl.appendChild(decrEl);
 				labelEl.appendChild(inputEl);
 				labelEl.appendChild(incrEl);
+			} else if (type === 'select') {
+				const wrapperEl = document.createElement('span');
+				wrapperEl.className = 'select-wrapper';
+				wrapperEl.appendChild(inputEl);
+				labelEl.appendChild(wrapperEl);
 			} else {
 				labelEl.appendChild(inputEl);
 			}
@@ -702,6 +717,30 @@
 		redraw();
 	}
 
+	let mouseRepeatTimer = null;
+	const MOUSE_INIT_DELAY   = 250;
+	const MOUSE_REPEAT_DELAY =  50;
+
+	function addMouseRepeatListener(element, listener) {
+		element.addEventListener('mousedown', function (event) {
+			const callback = () => {
+				listener.call(this, event);
+				mouseRepeatTimer = setTimeout(callback, MOUSE_REPEAT_DELAY);
+			};
+			if (mouseRepeatTimer !== null) {
+				clearTimeout(mouseRepeatTimer);
+			}
+			mouseRepeatTimer = setTimeout(callback, MOUSE_INIT_DELAY);
+		}, false);
+	}
+
+	window.addEventListener('mouseup', () => {
+		if (mouseRepeatTimer !== null) {
+			clearTimeout(mouseRepeatTimer);
+			mouseRepeatTimer = null;
+		}
+	}, false);
+
 	function initRange(id, suffix='') {
 		const inputEl = document.getElementById(id);
 		const incrEl = document.getElementById(id + '-incr');
@@ -717,7 +756,7 @@
 		inputEl.addEventListener("change", redraw, false);
 		inputEl.addEventListener("input", setOut, false);
 
-		decrEl.addEventListener("click", () => {
+		function decrease() {
 			const value = +inputEl.value - +inputEl.step;
 			if (value < +inputEl.min) {
 				inputEl.value = inputEl.min;
@@ -726,9 +765,9 @@
 			}
 			setOut();
 			redraw();
-		}, false);
+		}
 
-		incrEl.addEventListener("click", () => {
+		function increase() {
 			const value = +inputEl.value + +inputEl.step;
 			if (value > +inputEl.max) {
 				inputEl.value = inputEl.max;
@@ -737,7 +776,13 @@
 			}
 			setOut();
 			redraw();
-		}, false);
+		}
+
+		decrEl.addEventListener("click", decrease, false);
+		incrEl.addEventListener("click", increase, false);
+
+		addMouseRepeatListener(decrEl, decrease);
+		addMouseRepeatListener(incrEl, increase);
 
 		resetEl.addEventListener("click", () => {
 			inputEl.value = inputEl.getAttribute("value");
